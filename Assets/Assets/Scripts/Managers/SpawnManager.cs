@@ -5,11 +5,11 @@ public class SpawnManager : MonoBehaviour
 {
     [SerializeField] float spawnXStart = 0.16f, spawnYStart = 1.48f, floorOffset = 4f;
     [SerializeField] GameObject[] passangerPrefabs;
-    [SerializeField] GameObject[] inputPanels;
+    [SerializeField] GameObject[] inputPanels, floors;
     [SerializeField] int maxSpawnLimit = 5;
 
     MainManager mainManager;
-    private void Start()
+    private void Awake()
     {
         mainManager = GameObject.Find("MainManager").GetComponent<MainManager>();
     }
@@ -29,21 +29,30 @@ public class SpawnManager : MonoBehaviour
         int weight = int.Parse(inputPanels[floorNo].transform.GetChild(1).GetComponent<TMP_InputField>().text);
 
         int val = mainManager.gameManager.DP[floorNo].Count + mainManager.gameManager.VIP[floorNo].Count;
-        
+
         if (val < maxSpawnLimit)
         {
 
             GameObject passanger = Instantiate(passangerPrefabs[type], new Vector2(-(spawnXStart + val), spawnYStart + (floorNo * floorOffset)), Quaternion.identity);
+            passanger.transform.SetParent(floors[floorNo].transform);
             passanger.transform.GetChild(0).transform.GetChild(0).GetComponent<TextMeshProUGUI>().text = weight.ToString() + "(" + destination.ToString() + ")";
 
-            if (type == 0)
+            if (destination == floorNo)
             {
-                mainManager.gameManager.DP[floorNo].AddLast(passanger);
+                passanger.GetComponent<Passanger>().hasReached = true;
             }
             else
             {
-                mainManager.gameManager.VIP[floorNo].Enqueue(passanger);
+                if (type == 0)
+                {
+                    mainManager.gameManager.DP[floorNo].AddLast(passanger);
+                }
+                else
+                {
+                    mainManager.gameManager.VIP[floorNo].Enqueue(passanger);
+                }
             }
+            
         }
     }
 }
