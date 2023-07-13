@@ -3,7 +3,9 @@ using UnityEngine;
 
 public class SpawnManager : MonoBehaviour
 {
-    [SerializeField] float spawnXStart = 0.16f, spawnYStart = 1.48f, floorOffset = 4f;
+    public static float spawnYStart = 1.48f, floorOffset = 4f;
+
+    [SerializeField] float spawnXStart = 0.16f;
     [SerializeField] GameObject[] passangerPrefabs;
     [SerializeField] GameObject[] inputPanels, floors;
     [SerializeField] int maxSpawnLimit = 5;
@@ -32,10 +34,11 @@ public class SpawnManager : MonoBehaviour
 
         if (val < maxSpawnLimit)
         {
-
+            //Instantiating passangers and updating their informations
             GameObject passanger = Instantiate(passangerPrefabs[type], new Vector2(-(spawnXStart + val), spawnYStart + (floorNo * floorOffset)), Quaternion.identity);
             passanger.transform.SetParent(floors[floorNo].transform);
             passanger.transform.GetChild(0).transform.GetChild(0).GetComponent<TextMeshProUGUI>().text = weight.ToString() + "(" + destination.ToString() + ")";
+            
 
             if (destination == floorNo)
             {
@@ -43,6 +46,10 @@ public class SpawnManager : MonoBehaviour
             }
             else
             {
+                //Calling the elevator
+                ElevatorSystem.floorCall.Enqueue(floorNo);
+
+                //adding passanger to floor queue/linkedlist
                 if (type == 0)
                 {
                     mainManager.gameManager.DP[floorNo].AddLast(passanger);

@@ -6,9 +6,11 @@ public class GameManager : MonoBehaviour
 {
     public Queue<GameObject>[] VIP = new Queue<GameObject>[3];
     public LinkedList<GameObject>[] DP = new LinkedList<GameObject>[3];
+    public static int elevatorOnFloor;
 
     private void Start()
     {
+        elevatorOnFloor = 0;
         for(int i = 0; i < VIP.Length; i++)
         {
             VIP[i] = new Queue<GameObject>();
