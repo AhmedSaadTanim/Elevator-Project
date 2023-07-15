@@ -16,5 +16,23 @@ public class GameManager : MonoBehaviour
             VIP[i] = new LinkedList<GameObject>();
             DP[i] = new LinkedList<GameObject>();
         }
-    }  
+    }
+    
+    public void SortQueue()
+    {
+        Debug.Log("Sorting now : " + elevatorOnFloor);
+        int index = 0;
+        foreach(GameObject p in VIP[elevatorOnFloor])
+        {
+            p.transform.GetComponent<Passanger>().Move(new Vector2(-(SpawnManager.spawnXStart + index), p.transform.position.y));
+            
+            index++;
+        }
+
+        foreach(GameObject p in DP[elevatorOnFloor])
+        {
+            p.transform.GetComponent<Passanger>().Move(new Vector2(-(SpawnManager.spawnXStart + index), p.transform.position.y));
+            index++;
+        }
+    }
 }

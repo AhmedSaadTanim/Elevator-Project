@@ -68,16 +68,21 @@ public class ElevatorSystem : MonoBehaviour
         {
             if (capacityUsed < maxCapacity && ScanForPassanger())
             {
+                Debug.Log("Testing");
                 readyForScan = false;
                 to = floorCall.Dequeue().Item1;
                 StartCoroutine(DelayOnStart());
             }
             else if(capacityUsed >= maxCapacity && ScanForPassanger())
             {
+                Debug.Log("Entering here");
                 readyForScan = false;
+                Debug.Log(floorCall.Peek());
                 if(mainManager.gameManager.VIP[floorCall.Peek().Item1].Count > 0 && DpList.Count > 0 && calculateReplacableDP(floorCall.Peek().Item1) != 0)
                 {
+                    Debug.Log("Here too");
                     to = floorCall.Dequeue().Item1;
+                    
                     MoveElevator(currentFloor, to, false);
                     //replace = true;
                 }
@@ -92,7 +97,7 @@ public class ElevatorSystem : MonoBehaviour
             }
             else if (currentFloor != 0)
             {
-                Debug.Log("Bug");
+                Debug.Log("Back");
                 readyForScan = false;
                 MoveElevator(currentFloor, 0, true);
             }
@@ -140,17 +145,25 @@ public class ElevatorSystem : MonoBehaviour
 
     private void ClearFloorCall()
     {
+        Debug.Log(floorCall.Count + " " + to);
+        if (floorCall.Count > 0)
+            Debug.Log(floorCall.Peek());
+
+        tempWeight = 0;
         while (floorCall.Count > 0 && to == floorCall.Peek().Item1)
         {
             tempWeight += floorCall.Peek().Item2;
             //Debug.Log(floorCall.Peek().Item1 + " " + floorCall.Peek().Item2);
-            if (tempWeight > maxCapacity)
+            if (tempWeight >= maxCapacity)
             {
-                tempWeight = 0;
                 break;
             }
             floorCall.Dequeue();
         }
+        
+        if (floorCall.Count > 0)
+            Debug.Log(floorCall.Peek());
+        Debug.Log(floorCall.Count);
     }
 
     private bool ScanForDelivery()
@@ -289,11 +302,13 @@ public class ElevatorSystem : MonoBehaviour
             }
             else
             {
+                Debug.Log("First close");
                 StartCoroutine(DelayOnClose());
             }
         }
         else
         {
+                Debug.Log("Second close");
             //no passanger on floor, so ready to check for passanger on different floor
             StartCoroutine(DelayOnClose());
         }
@@ -335,6 +350,7 @@ public class ElevatorSystem : MonoBehaviour
 
     IEnumerator DelayOnClose()
     {
+        mainManager.gameManager.SortQueue();
         yield return new WaitForSeconds(1f);
         elevators[currentFloor].SetTrigger("close");
         readyForScan = true;
