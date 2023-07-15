@@ -14,13 +14,15 @@ public class Passanger : MonoBehaviour
     [SerializeField] float duration = 20f, fadeoutDuration = 5f;
 
     ElevatorSystem elevatorSystem;
+    MainManager mainManager;
     Color fade = new(0, 0, 0, 0);
-    bool elevatorReady;
+    bool elevatorReady, shouldWait;
     string passangerInfo;
-    float elapsedTime;
-    int type;
+    float elapsedTime, waitingPosX;
+    int type, waitingFloor;
     private void Awake()
     {
+        mainManager = GameObject.Find("MainManager").GetComponent<MainManager>();
         elevatorSystem = GameObject.Find("elevatorDisplay").GetComponent<ElevatorSystem>();
     }
 
@@ -50,6 +52,16 @@ public class Passanger : MonoBehaviour
                 elevatorSystem.LoadPassangers();
             }
         }
+
+        if(shouldWait)
+        {
+            transform.position = Vector2.Lerp(transform.position, new Vector2(waitingPosX, transform.position.y), moveSpeed * Time.deltaTime);
+
+            if (Mathf.Abs(transform.position.x - waitingPosX) <= 0.05)
+            {
+                shouldWait = false;
+            }
+        }
     }
 
     public void MoveTo()
@@ -59,6 +71,8 @@ public class Passanger : MonoBehaviour
 
     private void Exit()
     {
+        transform.GetChild(0).gameObject.SetActive(true);
+
         elapsedTime += Time.deltaTime;
         transform.position = Vector2.Lerp(transform.position, new Vector2(posX, transform.position.y), elapsedTime / duration);
 
@@ -92,5 +106,31 @@ public class Passanger : MonoBehaviour
 
         //updating elevator system
         ElevatorSystem.capacityUsed -= weight;
+    }
+
+    public void WaitInLine(int floor)
+    {
+        waitingFloor = floor;
+
+        transform.GetChild(0).gameObject.SetActive(true);
+        GetComponent<SpriteRenderer>().sortingOrder = 5;
+        ElevatorSystem.capacityUsed -= weight;
+        shouldWait = true;
+
+        waitingPosX = -SpawnManager.spawnXStart;
+
+        if (mainManager.gameManager.DP[waitingFloor].Count != 0)
+        {
+            waitingPosX = mainManager.gameManager.DP[floor].First.Value.transform.position.x;
+        }
+
+        foreach (GameObject p in mainManager.gameManager.DP[floor])
+        {
+            p.transform.position = new Vector2(p.transform.position.x - 1, p.transform.position.y);
+        }
+
+        transform.position = new Vector2(transform.position.x, SpawnManager.spawnYStart + (GameManager.elevatorOnFloor * SpawnManager.floorOffset));
+        mainManager.gameManager.DP[waitingFloor].AddFirst(gameObject);
+        ElevatorSystem.floorCall.Enqueue(new(floor, weight));
     }
 }

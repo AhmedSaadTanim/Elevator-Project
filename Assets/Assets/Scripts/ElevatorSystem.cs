@@ -3,15 +3,16 @@ using System.Collections.Generic;
 using TMPro;
 using UnityEngine;
 using UnityEngine.UI;
+using System;
 using System.Linq;
 
 public class ElevatorSystem : MonoBehaviour
 {
-    [HideInInspector] public static Queue<int> floorCall = new();
+    [HideInInspector] public static Queue<Tuple<int, int>> floorCall = new();
     public static int capacityUsed;
 
-    public LinkedList<Passanger> vipQueue = new();
-    public LinkedList<Passanger> DPQueue = new();
+    public LinkedList<Passanger> vipList = new();
+    public LinkedList<Passanger> DpList = new();
     public bool hasReached, noVipOnElevator;
     public int to;
 
@@ -37,8 +38,8 @@ public class ElevatorSystem : MonoBehaviour
     readonly string vipText = "VIP";
     readonly string[] floorNames = { "2", "1", "G" };
     int currentFloor;
-    float elapsedTime;
-    bool readyForScan;
+    float elapsedTime, tempWeight;
+    bool readyForScan, replace;
 
     private void Awake()
     {
@@ -65,23 +66,36 @@ public class ElevatorSystem : MonoBehaviour
         UpdateStatusText();
         if (readyForScan)
         {
-            if (ScanForPassanger())
+            if (capacityUsed < maxCapacity && ScanForPassanger())
             {
                 readyForScan = false;
-                to = floorCall.Dequeue();
-                hasReached = true;
+                to = floorCall.Dequeue().Item1;
+                StartCoroutine(DelayOnStart());
+            }
+            else if(capacityUsed >= maxCapacity && ScanForPassanger())
+            {
+                readyForScan = false;
+                if(mainManager.gameManager.VIP[floorCall.Peek().Item1].Count > 0 && DpList.Count > 0 && calculateReplacableDP(floorCall.Peek().Item1) != 0)
+                {
+                    to = floorCall.Dequeue().Item1;
+                    MoveElevator(currentFloor, to, false);
+                    //replace = true;
+                }
+                else if(ScanForDelivery())
+                {
+                    DoDelivery();
+                }
             }
             else if (ScanForDelivery())
             {
-                readyForScan = false;
-
-                SetDestinationFloor();
+                DoDelivery();
             }
-           else if (currentFloor != 0)
-           {
+            else if (currentFloor != 0)
+            {
+                Debug.Log("Bug");
                 readyForScan = false;
                 MoveElevator(currentFloor, 0, true);
-           }
+            }
         }
 
         if (hasReached)
@@ -97,7 +111,7 @@ public class ElevatorSystem : MonoBehaviour
                 elevators[to].SetTrigger("open");
             }
         }
-        ClearFloorCall();
+
     }
 
 
@@ -106,12 +120,10 @@ public class ElevatorSystem : MonoBehaviour
         //copying all unique destinations to hashSet
         HashSet<int> tempSet = new();
 
-        Passanger[] temp = vipQueue.ToArray();
-        for (int i = 0; i < temp.Length; i++) { tempSet.Add(temp[i].destination); }
+        foreach (Passanger p in vipList) { tempSet.Add(p.destination); }
+        foreach (Passanger p in DpList) { tempSet.Add(p.destination); }
 
-        foreach (Passanger p in DPQueue) { tempSet.Add(p.destination); }
-
-        //Debug.Log(vipQueue.Count + " " + DPQueue.Count + " " + tempSet.Count);
+        //Debug.Log(vipList.Count + " " + DpList.Count + " " + tempSet.Count);
         if (tempSet.Count == 2)
         {
             to = currentFloor == 0 ? 1 : currentFloor == 1 ? 2 : 1;
@@ -128,23 +140,28 @@ public class ElevatorSystem : MonoBehaviour
 
     private void ClearFloorCall()
     {
-        if (floorCall.Count > 0)
+        while (floorCall.Count > 0 && to == floorCall.Peek().Item1)
         {
-            //Debug.Log("Entry to clear " + floorCall.Count + " " + to + " " + floorCall.Peek());
-            while (floorCall.Count > 0 && to == floorCall.Peek())
+            tempWeight += floorCall.Peek().Item2;
+            //Debug.Log(floorCall.Peek().Item1 + " " + floorCall.Peek().Item2);
+            if (tempWeight > maxCapacity)
             {
-                //Debug.Log("Clearing" + floorCall.Peek());
-                floorCall.Dequeue();
+                tempWeight = 0;
+                break;
             }
-            //Debug.Log("After clear " + floorCall.Count);
-            //if (floorCall.Count > 0)
-            // Debug.Log(to + " " + floorCall.Peek());
+            floorCall.Dequeue();
         }
     }
 
     private bool ScanForDelivery()
     {
-        return vipQueue.Count > 0 || DPQueue.Count > 0;
+        return vipList.Count > 0 || DpList.Count > 0;
+    }
+
+    private void DoDelivery()
+    {
+        readyForScan = false;
+        SetDestinationFloor();
     }
 
     private bool ScanForPassanger()
@@ -209,10 +226,10 @@ public class ElevatorSystem : MonoBehaviour
         //unload passangers if any exists
         GameManager.elevatorOnFloor = currentFloor;
 
-        RegisterInQueue(vipQueue);
-        RegisterInQueue(DPQueue);
+        RegisterInQueue(vipList);
+        RegisterInQueue(DpList);
 
-        if(exitQueue.Count > 0)
+        if (exitQueue.Count > 0)
         {
             StartCoroutine(ExitPassangers());
         }
@@ -227,7 +244,7 @@ public class ElevatorSystem : MonoBehaviour
         yield return new WaitForSeconds(exitTime);
         exitQueue.Peek().OnDestinationReached();
         exitQueue.Dequeue();
-        if(exitQueue.Count != 0)
+        if (exitQueue.Count != 0)
         {
             StartCoroutine(ExitPassangers());
         }
@@ -242,16 +259,38 @@ public class ElevatorSystem : MonoBehaviour
         //load if any passanger is on floor
         if (mainManager.gameManager.VIP[currentFloor].Count != 0 && capacityUsed < maxCapacity)
         {
-            Passanger passanger = mainManager.gameManager.VIP[currentFloor].Dequeue().GetComponent<Passanger>();
+            Passanger passanger = mainManager.gameManager.VIP[currentFloor].First.Value.GetComponent<Passanger>();
+            mainManager.gameManager.VIP[currentFloor].RemoveFirst();
             passanger.MoveTo();
-            vipQueue.AddLast(passanger);
+            vipList.AddLast(passanger);
         }
         else if (mainManager.gameManager.DP[currentFloor].Count != 0 && capacityUsed < maxCapacity)
         {
             Passanger passanger = mainManager.gameManager.DP[currentFloor].First.Value.GetComponent<Passanger>();
             mainManager.gameManager.DP[currentFloor].RemoveFirst();
             passanger.MoveTo();
-            DPQueue.AddLast(passanger);
+            DpList.AddLast(passanger);
+        }
+        else if(capacityUsed >= maxCapacity && DpList.Count > 0 && mainManager.gameManager.VIP[currentFloor].Count > 0)
+        {
+            int counter = calculateReplacableDP(currentFloor);
+            if(counter > 0)
+            {
+                while (counter != 0)
+                {
+                    DpList.Last.Value.WaitInLine(currentFloor);
+                    DpList.RemoveLast();
+                    counter--;
+                }
+                Passanger passanger = mainManager.gameManager.VIP[currentFloor].First.Value.GetComponent<Passanger>();
+                mainManager.gameManager.VIP[currentFloor].RemoveFirst();
+                passanger.MoveTo();
+                vipList.AddLast(passanger);
+            }
+            else
+            {
+                StartCoroutine(DelayOnClose());
+            }
         }
         else
         {
@@ -260,10 +299,38 @@ public class ElevatorSystem : MonoBehaviour
         }
     }
 
+    private int calculateReplacableDP(int floorNo)
+    {
+        int calcWeight = 0;
+        int vipWeight = mainManager.gameManager.VIP[floorNo].First.Value.GetComponent<Passanger>().weight;
+        int counter = 0;
+
+        var lastNode = DpList.Last;
+        while (lastNode != null)
+        {
+            calcWeight += lastNode.Value.weight;
+            counter++;
+            if (vipWeight <= calcWeight)
+            {
+                return counter; 
+            }
+            lastNode = lastNode.Previous;
+        }
+        return 0;
+    }
+
     private void UpdateStatusText()
     {
-        refVipText.text = vipQueue.Count == 0 ? "" : vipText;
+        refWeightText.color = capacityUsed >= maxCapacity ? Color.red : Color.green;
+        refVipText.text = vipList.Count == 0 ? "" : vipText;
         refWeightText.text = capacityUsed + " KG";
+    }
+
+    IEnumerator DelayOnStart()
+    {
+        yield return new WaitForSeconds(1f);
+        ClearFloorCall();
+        hasReached = true;
     }
 
     IEnumerator DelayOnClose()
@@ -275,7 +342,7 @@ public class ElevatorSystem : MonoBehaviour
 
     private void RegisterInQueue(LinkedList<Passanger> L)
     {
-        if(L.Count > 0)
+        if (L.Count > 0)
         {
             foreach (Passanger p in L.ToList())
             {
@@ -286,5 +353,5 @@ public class ElevatorSystem : MonoBehaviour
                 }
             }
         }
-    }    
+    }
 }
