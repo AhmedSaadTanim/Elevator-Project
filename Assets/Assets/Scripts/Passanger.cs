@@ -1,14 +1,11 @@
-using System.Collections;
-using System.Collections.Generic;
 using TMPro;
 using UnityEngine;
 
 public class Passanger : MonoBehaviour
 {
-
-    public int weight;
-    public int destination;
-    public bool hasReached;
+    [HideInInspector] public int weight;
+    [HideInInspector] public int destination;
+    [HideInInspector] public bool hasReachedDestination;
 
     [SerializeField] float posX = 3.80f, liftPosX = 1.38f, moveSpeed = 2f;
     [SerializeField] float duration = 20f, fadeoutDuration = 5f;
@@ -16,17 +13,18 @@ public class Passanger : MonoBehaviour
     ElevatorSystem elevatorSystem;
     MainManager mainManager;
     Color fade = new(0, 0, 0, 0);
+    Vector2 movePos;
+
     bool elevatorReady, startMove;
     string passangerInfo;
     float elapsedTime, waitingPosX;
     int type;
-    Vector2 movePos;
+
     private void Awake()
     {
         mainManager = GameObject.Find("MainManager").GetComponent<MainManager>();
         elevatorSystem = GameObject.Find("elevatorDisplay").GetComponent<ElevatorSystem>();
     }
-
     private void Start()
     {
         passangerInfo = transform.GetChild(0).GetChild(0).GetComponent<TMP_Text>().text;
@@ -34,10 +32,7 @@ public class Passanger : MonoBehaviour
     }
     private void Update()
     {
-        if (hasReached)
-        {
-            Exit();
-        }
+        if (hasReachedDestination) { Exit(); }
 
         if (elevatorReady)
         {
@@ -54,10 +49,7 @@ public class Passanger : MonoBehaviour
             }
         }
 
-        if(startMove)
-        {
-            Move(movePos);
-        }
+        if(startMove) { Move(movePos); }
     }
 
     public void Move(Vector2 targetPosition)
@@ -65,10 +57,8 @@ public class Passanger : MonoBehaviour
         startMove = true;
         movePos = targetPosition;
         transform.position = Vector2.Lerp(transform.position, targetPosition, 2 * moveSpeed * Time.deltaTime);
-        if (Mathf.Abs(transform.position.x - targetPosition.x) <= 0.05)
-        {
-            startMove = false;
-        }
+
+        if (Mathf.Abs(transform.position.x - targetPosition.x) <= 0.05) { startMove = false; }
     }
 
     public void MoveTo()
@@ -104,7 +94,7 @@ public class Passanger : MonoBehaviour
     public void OnDestinationReached()
     {
         //reseting bools
-        hasReached = true;
+        hasReachedDestination = true;
 
         //setting passanger properties
         GetComponent<SpriteRenderer>().sortingOrder = 5;
@@ -117,10 +107,12 @@ public class Passanger : MonoBehaviour
 
     public void WaitInLine(int floor)
     {
+        //updating passanger and elevator
         transform.GetChild(0).gameObject.SetActive(true);
         GetComponent<SpriteRenderer>().sortingOrder = 5;
         ElevatorSystem.capacityUsed -= weight;
 
+        //fixing order of standing in the waiting line of the floor
         transform.position = new Vector2(transform.position.x, SpawnManager.spawnYStart + (floor * SpawnManager.floorOffset));
         waitingPosX = mainManager.gameManager.DP[floor].Count != 0 ? mainManager.gameManager.DP[floor].First.Value.transform.position.x
                                                                           : - SpawnManager.spawnXStart;
@@ -132,6 +124,7 @@ public class Passanger : MonoBehaviour
             p.transform.GetComponent<Passanger>().Move(new Vector2(p.transform.position.x - 1, p.transform.position.y));
         }
         
+        //Re-adding the new passanger
         mainManager.gameManager.DP[floor].AddFirst(gameObject);
         ElevatorSystem.floorCall.Enqueue(new(floor, weight));
     }

@@ -27,6 +27,7 @@ public class SpawnManager : MonoBehaviour
 
     private void FixQueue(int type, int floorNo,  Transform passangerTransform)
     {
+        //putting VIPs before the DPs
         if (type == 1 && passangerTransform.position.x != -spawnXStart && mainManager.gameManager.DP[floorNo].Count > 0)
         {
             if(mainManager.gameManager.DP[floorNo].First.Value.transform.position.x > passangerTransform.position.x)
@@ -60,14 +61,14 @@ public class SpawnManager : MonoBehaviour
 
             if (destination == floorNo)
             {
-                passanger.GetComponent<Passanger>().hasReached = true;
+                passanger.GetComponent<Passanger>().hasReachedDestination = true;
             }
             else
             {
                 //Calling the elevator
                 ElevatorSystem.floorCall.Enqueue(Tuple.Create(floorNo, weight));
 
-                //adding passanger to floor queue/linkedlist
+                //adding passanger to each floor's list
                 if (type == 0)
                 {
                     mainManager.gameManager.DP[floorNo].AddLast(passanger);

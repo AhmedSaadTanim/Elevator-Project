@@ -1,4 +1,3 @@
-using System.Collections;
 using System.Collections.Generic;
 using UnityEngine;
 
@@ -20,7 +19,7 @@ public class GameManager : MonoBehaviour
     
     public void SortQueue()
     {
-        Debug.Log("Sorting now : " + elevatorOnFloor);
+        //sorting the queue of passangers on the floor the elevator closes
         int index = 0;
         foreach(GameObject p in VIP[elevatorOnFloor])
         {

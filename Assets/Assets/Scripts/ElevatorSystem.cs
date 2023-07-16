@@ -8,13 +8,13 @@ using System.Linq;
 
 public class ElevatorSystem : MonoBehaviour
 {
-    [HideInInspector] public static Queue<Tuple<int, int>> floorCall = new();
+    public static Queue<Tuple<int, int>> floorCall = new();
     public static int capacityUsed;
 
     public LinkedList<Passanger> vipList = new();
     public LinkedList<Passanger> DpList = new();
-    public bool hasReached, noVipOnElevator;
-    public int to;
+    [HideInInspector] public bool hasReached, noVipOnElevator;
+    [HideInInspector] public int to;
 
     [Header("References")]
 
@@ -34,12 +34,12 @@ public class ElevatorSystem : MonoBehaviour
 
     MainManager mainManager;
     Queue<Passanger> exitQueue = new();
-    Color noColor = new();
+    readonly Color noColor = new();
     readonly string vipText = "VIP";
     readonly string[] floorNames = { "2", "1", "G" };
     int currentFloor;
     float elapsedTime, tempWeight;
-    bool readyForScan, replace;
+    bool readyForScan;
 
     private void Awake()
     {
@@ -62,64 +62,57 @@ public class ElevatorSystem : MonoBehaviour
 
     private void Update()
     {
+        //putting elevator on idle if no passangers
         CheckForIdle();
+        //updating elevator display
         UpdateStatusText();
         if (readyForScan)
         {
-            if (capacityUsed < maxCapacity && ScanForPassanger())
-            {
-                Debug.Log("Testing");
-                readyForScan = false;
-                to = floorCall.Dequeue().Item1;
-                StartCoroutine(DelayOnStart());
-            }
-            else if(capacityUsed >= maxCapacity && ScanForPassanger())
-            {
-                Debug.Log("Entering here");
-                readyForScan = false;
-                Debug.Log(floorCall.Peek());
-                if(mainManager.gameManager.VIP[floorCall.Peek().Item1].Count > 0 && DpList.Count > 0 && calculateReplacableDP(floorCall.Peek().Item1) != 0)
-                {
-                    Debug.Log("Here too");
-                    to = floorCall.Dequeue().Item1;
-                    
-                    MoveElevator(currentFloor, to, false);
-                    //replace = true;
-                }
-                else if(ScanForDelivery())
-                {
-                    DoDelivery();
-                }
-            }
-            else if (ScanForDelivery())
-            {
-                DoDelivery();
-            }
-            else if (currentFloor != 0)
-            {
-                Debug.Log("Back");
-                readyForScan = false;
-                MoveElevator(currentFloor, 0, true);
-            }
+            //scanning for passangers or performing delivery of passangers
+            PerformActionCheck();
         }
 
         if (hasReached)
         {
             hasReached = false;
-
-            if (currentFloor != to)
-            {
-                MoveElevator(currentFloor, to, false); // to should be decided by checking if passangers are waiting
-            }
-            else
-            {
-                elevators[to].SetTrigger("open");
-            }
+            if (currentFloor != to) { MoveElevator(currentFloor, to, false); }
+            else { elevators[to].SetTrigger("open"); }
         }
 
     }
 
-
+    private void PerformActionCheck()
+    {
+        if (capacityUsed < maxCapacity && ScanForPassanger())
+        {
+            readyForScan = false;
+            to = floorCall.Dequeue().Item1;
+            StartCoroutine(DelayOnStart());
+        }
+        else if (capacityUsed >= maxCapacity && ScanForPassanger())
+        {
+            readyForScan = false;
+            if (mainManager.gameManager.VIP[floorCall.Peek().Item1].Count > 0 && DpList.Count > 0 && CalculateReplacableDP(floorCall.Peek().Item1) != 0)
+            {
+                to = floorCall.Dequeue().Item1;
+                MoveElevator(currentFloor, to, false);
+            }
+            else if (ScanForDelivery())
+            {
+                DoDelivery();
+            }
+        }
+        else if (ScanForDelivery())
+        {
+            DoDelivery();
+        }
+        else if (currentFloor != 0)
+        {
+            //There's no action to perform, head to ground floor to be idle
+            readyForScan = false;
+            MoveElevator(currentFloor, 0, true);
+        }
+    }
     private void SetDestinationFloor()
     {
         //copying all unique destinations to hashSet
@@ -128,77 +121,46 @@ public class ElevatorSystem : MonoBehaviour
         foreach (Passanger p in vipList) { tempSet.Add(p.destination); }
         foreach (Passanger p in DpList) { tempSet.Add(p.destination); }
 
-        //Debug.Log(vipList.Count + " " + DpList.Count + " " + tempSet.Count);
-        if (tempSet.Count == 2)
-        {
-            to = currentFloor == 0 ? 1 : currentFloor == 1 ? 2 : 1;
-        }
-        else
-        {
-            to = tempSet.Contains(1) ? 1 : tempSet.Contains(2) ? 2 : 0;
+        //if there are 2 destinations visit the closest one at first
+        if (tempSet.Count == 2) { to = currentFloor == 0 ? 1 : currentFloor == 1 ? 2 : 1; }
+        else { to = tempSet.Contains(1) ? 1 : tempSet.Contains(2) ? 2 : 0;
         }
 
-        //Debug.Log(to);
         tempSet.Clear();
         MoveElevator(currentFloor, to, false);
     }
-
     private void ClearFloorCall()
     {
-        Debug.Log(floorCall.Count + " " + to);
-        if (floorCall.Count > 0)
-            Debug.Log(floorCall.Peek());
-
         tempWeight = 0;
         while (floorCall.Count > 0 && to == floorCall.Peek().Item1)
         {
             tempWeight += floorCall.Peek().Item2;
-            //Debug.Log(floorCall.Peek().Item1 + " " + floorCall.Peek().Item2);
-            if (tempWeight >= maxCapacity)
-            {
-                break;
-            }
+            if (tempWeight >= maxCapacity) { break; }
             floorCall.Dequeue();
         }
-        
-        if (floorCall.Count > 0)
-            Debug.Log(floorCall.Peek());
-        Debug.Log(floorCall.Count);
     }
-
+    private bool ScanForPassanger()
+    {
+        return floorCall.Count > 0;
+    }
     private bool ScanForDelivery()
     {
         return vipList.Count > 0 || DpList.Count > 0;
     }
-
     private void DoDelivery()
     {
         readyForScan = false;
         SetDestinationFloor();
     }
 
-    private bool ScanForPassanger()
-    {
-        return floorCall.Count > 0;
-    }
-
     private void CheckForIdle()
     {
         if (currentFloor == 0 && readyForScan)
         {
-            if (Mathf.Abs(elapsedTime - idleTimer) <= 0.05f)
-            {
-                SwitchToIdle();
-            }
-            else
-            {
-                elapsedTime += Time.deltaTime;
-            }
+            if (Mathf.Abs(elapsedTime - idleTimer) <= 0.05f) { SwitchToIdle(); }
+            else { elapsedTime += Time.deltaTime; }
         }
-        else
-        {
-            elapsedTime = 0;
-        }
+        else { elapsedTime = 0; }
     }
 
     private void MoveElevator(int from, int to, bool isIdle)
@@ -209,13 +171,13 @@ public class ElevatorSystem : MonoBehaviour
 
         StartCoroutine(ChangeFloor(tempValue, from, to, isIdle));
     }
-
     IEnumerator ChangeFloor(int val, int from, int to, bool isIdle)
     {
         yield return new WaitForSeconds(waitTime);
         currentFloor += val;
         floorCounter.text = floorNames[^(currentFloor + 1)];
         from += val;
+
         if (from == to)
         {
             if (!isIdle)
@@ -223,15 +185,9 @@ public class ElevatorSystem : MonoBehaviour
                 elevators[to].SetTrigger("open");
                 //animation ending calls UnLoadPassangers()
             }
-            else
-            {
-                readyForScan = true;
-            }
+            else { readyForScan = true; }
         }
-        else
-        {
-            MoveElevator(from, to, isIdle);
-        }
+        else { MoveElevator(from, to, isIdle); }
     }
 
     public void UnLoadPassangers()
@@ -242,31 +198,18 @@ public class ElevatorSystem : MonoBehaviour
         RegisterInQueue(vipList);
         RegisterInQueue(DpList);
 
-        if (exitQueue.Count > 0)
-        {
-            StartCoroutine(ExitPassangers());
-        }
-        else
-        {
-            LoadPassangers();
-        }
+        if (exitQueue.Count > 0) { StartCoroutine(ExitPassangers()); }
+        else { LoadPassangers(); }
     }
-
     IEnumerator ExitPassangers()
     {
         yield return new WaitForSeconds(exitTime);
         exitQueue.Peek().OnDestinationReached();
         exitQueue.Dequeue();
-        if (exitQueue.Count != 0)
-        {
-            StartCoroutine(ExitPassangers());
-        }
-        else
-        {
-            LoadPassangers();
-        }
-    }
 
+        if (exitQueue.Count != 0) { StartCoroutine(ExitPassangers()); }
+        else { LoadPassangers(); }
+    }
     public void LoadPassangers()
     {
         //load if any passanger is on floor
@@ -284,10 +227,10 @@ public class ElevatorSystem : MonoBehaviour
             passanger.MoveTo();
             DpList.AddLast(passanger);
         }
-        else if(capacityUsed >= maxCapacity && DpList.Count > 0 && mainManager.gameManager.VIP[currentFloor].Count > 0)
+        else if (capacityUsed >= maxCapacity && DpList.Count > 0 && mainManager.gameManager.VIP[currentFloor].Count > 0)
         {
-            int counter = calculateReplacableDP(currentFloor);
-            if(counter > 0)
+            int counter = CalculateReplacableDP(currentFloor);
+            if (counter > 0)
             {
                 while (counter != 0)
                 {
@@ -302,20 +245,19 @@ public class ElevatorSystem : MonoBehaviour
             }
             else
             {
-                Debug.Log("First close");
+                //should not reach here
                 StartCoroutine(DelayOnClose());
             }
         }
         else
         {
-                Debug.Log("Second close");
             //no passanger on floor, so ready to check for passanger on different floor
             StartCoroutine(DelayOnClose());
         }
     }
-
-    private int calculateReplacableDP(int floorNo)
+    private int CalculateReplacableDP(int floorNo)
     {
+        //helper function to replace how many DP should be put back in floor to be able to load waiting VIP
         int calcWeight = 0;
         int vipWeight = mainManager.gameManager.VIP[floorNo].First.Value.GetComponent<Passanger>().weight;
         int counter = 0;
@@ -327,7 +269,7 @@ public class ElevatorSystem : MonoBehaviour
             counter++;
             if (vipWeight <= calcWeight)
             {
-                return counter; 
+                return counter;
             }
             lastNode = lastNode.Previous;
         }
@@ -340,14 +282,12 @@ public class ElevatorSystem : MonoBehaviour
         refVipText.text = vipList.Count == 0 ? "" : vipText;
         refWeightText.text = capacityUsed + " KG";
     }
-
     IEnumerator DelayOnStart()
     {
         yield return new WaitForSeconds(1f);
         ClearFloorCall();
         hasReached = true;
     }
-
     IEnumerator DelayOnClose()
     {
         mainManager.gameManager.SortQueue();
@@ -355,7 +295,6 @@ public class ElevatorSystem : MonoBehaviour
         elevators[currentFloor].SetTrigger("close");
         readyForScan = true;
     }
-
     private void RegisterInQueue(LinkedList<Passanger> L)
     {
         if (L.Count > 0)
